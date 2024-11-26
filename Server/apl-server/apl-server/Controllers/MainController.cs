@@ -1,3 +1,4 @@
+using apl_server.Request;
 using apl_server.Service;
 using Microsoft.AspNetCore.Mvc;
 using System.Text.Json;
@@ -18,8 +19,8 @@ namespace apl_server.Controllers
             _messageService = messageService;
         }
 
-        [HttpPost(Name = "teste")]
-        public async Task<IActionResult> Post(object request)
+        [HttpPost("Messages")]
+        public async Task<IActionResult> Post(Message request)
         {
             var responseMessage = await _messageService.ProcessaMensagem(request);
             return Ok(responseMessage);

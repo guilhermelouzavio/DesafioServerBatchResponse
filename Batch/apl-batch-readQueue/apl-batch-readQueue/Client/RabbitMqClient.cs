@@ -1,34 +1,20 @@
-﻿using apl_server.Request;
-using Newtonsoft.Json;
-using RabbitMQ.Client;
-using RabbitMQ.Client.Events;
-using System.Data.Common;
+﻿using RabbitMQ.Client;
 using System.Text;
 using System.Threading.Channels;
 
-namespace apl_server.Client
+namespace apl_batch_readQueue.Client
 {
     public abstract class RabbitMqClient
     {
-
-        private TaskCompletionSource<Message> _task;
         private IConnection? _connection;
-
-        public async Task CreateTaskSource()
-        {
-            _task = new TaskCompletionSource<Message>();
-        }
-        public Message GetResultTask() => _task.Task.Result;
-        private async Task WaitResponseMessage() => await _task.Task;     
-        private void SetMessageConfirmed(Message response) => _task.SetResult(response);
-        
-
         public async Task CreateConnection(ConnectionFactory connectionFactory)
         {
             try
             {
                 if (_connection is null || _connection.IsOpen == false)
+                {
                     _connection = await connectionFactory.CreateConnectionAsync();
+                }
             }
             catch (Exception)
             {
@@ -45,6 +31,7 @@ namespace apl_server.Client
                 var channel = await _connection.CreateChannelAsync();
                 queue = await channel.QueueDeclareAsync(queueName, true, false, false);
                 await CloseChannel(channel);
+
                 return queue;
             }
             catch (Exception)
@@ -58,9 +45,9 @@ namespace apl_server.Client
         {
             
             var channel = await _connection.CreateChannelAsync();
+
             try
             {
-
                 byte[] messageBodyBytes = Encoding.UTF8.GetBytes(message);
 
                 var props = new BasicProperties();
@@ -68,9 +55,7 @@ namespace apl_server.Client
                 props.ContentType = "aplication/json";
                 props.DeliveryMode = DeliveryModes.Persistent;
 
-                await channel.BasicPublishAsync(string.Empty, queueName,false, props, messageBodyBytes);
-
-                var response = await channel.QueueDeclarePassiveAsync(queueName);
+                await channel.BasicPublishAsync(string.Empty, queueName, false, props, messageBodyBytes);
 
             }
             catch (Exception)
@@ -82,47 +67,49 @@ namespace apl_server.Client
             {
                 await CloseChannel(channel);
             }
-        
+
         }
 
-        public async Task ReadMessageQueue(string queueName, string requestID) 
+        public async Task<(string message, string correlationID)?> ReadMessageQueue(string queueName)
         {
+            var response = String.Empty;
+            (string message, string correlationID)? tuplaReponse = null;
+
             var channel = await _connection.CreateChannelAsync();
 
             await channel.QueueDeclareAsync(queueName, true, false, false, null);
 
-            var consumer = new AsyncEventingBasicConsumer(channel);
+            var eventMessage = await channel.BasicGetAsync(queueName, false);
 
-                consumer.ReceivedAsync += async (model, args) =>
+            try
+            {
+                if (eventMessage is not null)
                 {
-                    try
-                    {
-                        if (requestID.Equals(args.BasicProperties.CorrelationId))
-                        {
-                            var response = Encoding.UTF8.GetString(args.Body.ToArray());
-                            
-                            this.SetMessageConfirmed(JsonConvert.DeserializeObject<Message>(response));
-                            
-                            await channel.BasicAckAsync(args.DeliveryTag, false);
-                            
-                        }
-                    }
-                    catch (Exception)
-                    {
-                        await channel.BasicNackAsync(args.DeliveryTag, false, true);
-                        throw;
-                    }
-                };
+                    var props = eventMessage.BasicProperties;
+                    var message = Encoding.UTF8.GetString(eventMessage.Body.ToArray());
+                    await channel.BasicAckAsync(eventMessage.DeliveryTag, false);
 
-                await channel.BasicConsumeAsync(queueName, false, consumer);
+                    tuplaReponse = (message, props.CorrelationId);
 
-            await this.WaitResponseMessage();
+                    return tuplaReponse;
+                }
+            }
+            catch (Exception)
+            {
+                await channel.BasicNackAsync(eventMessage.DeliveryTag, false, true);
+                throw;
+            }
+            finally
+            {
+                await CloseChannel(channel);
+            }
+            
 
-            await CloseChannel(channel);
+            return tuplaReponse;
 
         }
 
-        public async Task CloseConnection() 
+        public async Task CloseConnection()
         {
             try
             {
