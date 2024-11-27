@@ -28,14 +28,14 @@ namespace apl_batch_readQueue.Services
                 await base.CreateQueue(SEND_QUEUE);
                 await base.CreateQueue(RESPONSE_QUEUE);
 
-                Console.WriteLine("Iniciando Leitura de Mensagens na Fila...");
+                Console.WriteLine("Iniciando Leitura de Mensagens na fila...");
 
                 var tuplaResponse = await base.ReadMessageQueue(SEND_QUEUE);
                 Console.WriteLine(tuplaResponse);
 
                 if (tuplaResponse is not null)
                 {
-                    Console.WriteLine("Escrevendo mensagem na fila de entrega...");
+                    Console.WriteLine("Escrevendo Mensagem na fila de entrega...");
                     await base.WriteMessageOnQueue(tuplaResponse?.message, RESPONSE_QUEUE, tuplaResponse?.correlationID);
                 }
 

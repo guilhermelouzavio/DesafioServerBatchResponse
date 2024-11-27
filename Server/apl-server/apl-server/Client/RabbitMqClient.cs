@@ -69,9 +69,6 @@ namespace apl_server.Client
                 props.DeliveryMode = DeliveryModes.Persistent;
 
                 await channel.BasicPublishAsync(string.Empty, queueName,false, props, messageBodyBytes);
-
-                var response = await channel.QueueDeclarePassiveAsync(queueName);
-
             }
             catch (Exception)
             {
@@ -93,28 +90,28 @@ namespace apl_server.Client
 
             var consumer = new AsyncEventingBasicConsumer(channel);
 
-                consumer.ReceivedAsync += async (model, args) =>
+            consumer.ReceivedAsync += async (model, args) =>
+            {
+                try
                 {
-                    try
+                    if (requestID.Equals(args.BasicProperties.CorrelationId))
                     {
-                        if (requestID.Equals(args.BasicProperties.CorrelationId))
-                        {
-                            var response = Encoding.UTF8.GetString(args.Body.ToArray());
-                            
-                            this.SetMessageConfirmed(JsonConvert.DeserializeObject<Message>(response));
-                            
-                            await channel.BasicAckAsync(args.DeliveryTag, false);
-                            
-                        }
-                    }
-                    catch (Exception)
-                    {
-                        await channel.BasicNackAsync(args.DeliveryTag, false, true);
-                        throw;
-                    }
-                };
+                        var response = Encoding.UTF8.GetString(args.Body.ToArray());
 
-                await channel.BasicConsumeAsync(queueName, false, consumer);
+                        this.SetMessageConfirmed(JsonConvert.DeserializeObject<Message>(response));
+
+                        await channel.BasicAckAsync(args.DeliveryTag, false);
+
+                    }
+                }
+                catch (Exception)
+                {
+                    await channel.BasicNackAsync(args.DeliveryTag, false, true);
+                    throw;
+                }
+            };
+
+            await channel.BasicConsumeAsync(queueName, false, consumer);
 
             await this.WaitResponseMessage();
 

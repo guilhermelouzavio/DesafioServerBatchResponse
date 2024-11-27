@@ -72,7 +72,6 @@ namespace apl_batch_readQueue.Client
 
         public async Task<(string message, string correlationID)?> ReadMessageQueue(string queueName)
         {
-            var response = String.Empty;
             (string message, string correlationID)? tuplaReponse = null;
 
             var channel = await _connection.CreateChannelAsync();
@@ -89,7 +88,7 @@ namespace apl_batch_readQueue.Client
                     var message = Encoding.UTF8.GetString(eventMessage.Body.ToArray());
                     await channel.BasicAckAsync(eventMessage.DeliveryTag, false);
 
-                    tuplaReponse = (message, props.CorrelationId);
+                    tuplaReponse = (message, props?.CorrelationId);
 
                     return tuplaReponse;
                 }
