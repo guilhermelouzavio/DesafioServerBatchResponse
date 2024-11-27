@@ -15,7 +15,7 @@ namespace apl_batch_readQueue.Configuration
             string jobName = typeof(T).Name;
 
             var configKey = $"Quartz:{jobName}";
-            int intervalInSeconds = 10;
+            int intervalInSeconds = 20;
 
             var jobKey = new JobKey(jobName);
             quartz.AddJob<T>(opts => opts.WithIdentity(jobKey));
